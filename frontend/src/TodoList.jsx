@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 
 
-const API_URL = "https://todoappreact-django.onrender.com";
+const API_URL = "https://todoappreact-django.onrender.com/api/list/";
 
 export default function TodoList() {
   const [tasks, setTasks] = useState([]);
