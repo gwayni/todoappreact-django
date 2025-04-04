@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 
 function App() {
-  const [tasks, setTasks] = useState(
-    JSON.parse(localStorage.getItem("tasks")) || []
-  );
-  const [newTask, setNewTask] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [darkMode, setDarkMode] = useState(
-    localStorage.getItem("theme") === "dark"
-  );
+  useEffect(() => {
+    fetch("https://your-backend.onrender.com/api/tasks/")
+      .then((res) => res.json())
+      .then((data) => setTasks(data));
+  }, []);
+  
+
+  const editInputRef = useRef(null);
 
   useEffect(() => {
     document.body.className = darkMode ? "dark-mode" : "light-mode";
@@ -20,22 +20,70 @@ function App() {
     localStorage.setItem("tasks", JSON.stringify(tasks));
   }, [tasks]);
 
+  useEffect(() => {
+    if (editingTask !== null && editInputRef.current) {
+      editInputRef.current.focus();
+    }
+  }, [editingTask]);
+
   const addTask = () => {
     if (newTask.trim()) {
-      setTasks([...tasks, { text: newTask, completed: false }]);
+      fetch("https://your-backend.onrender.com/api/tasks/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: newTask, completed: false }),
+      })
+      .then(res => res.json())
+      .then((data) => setTasks([...tasks, data]));
+  
       setNewTask("");
     }
-  };
+  };  
 
-  const toggleTaskCompletion = (index) => {
-    const updatedTasks = tasks.map((task, i) =>
-      i === index ? { ...task, completed: !task.completed } : task
-    );
-    setTasks(updatedTasks);
+  const toggleComplete = (index) => {
+    const task = tasks[index];
+    fetch(`https://your-backend.onrender.com/api/tasks/${task.id}/`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...task, completed: !task.completed }),
+    })
+    .then(res => res.json())
+    .then((updatedTask) => {
+      setTasks(tasks.map((t, i) => (i === index ? updatedTask : t)));
+    });
   };
-
+  
   const deleteTask = (index) => {
-    setTasks(tasks.filter((_, i) => i !== index));
+    const task = tasks[index];
+    fetch(`https://your-backend.onrender.com/api/tasks/${task.id}/`, {
+      method: "DELETE",
+    })
+    .then(() => {
+      setTasks(tasks.filter((_, i) => i !== index));
+    });
+  };
+  
+
+  const startEditing = (index, text) => {
+    setEditingTask(index);
+    setEditText(text);
+  };
+
+  const saveEdit = (index) => {
+    if (editText.trim()) {
+      setTasks(
+        tasks.map((task, i) =>
+          i === index ? { ...task, text: editText } : task
+        )
+      );
+    }
+    setEditingTask(null);
+  };
+
+  const handleKeyDown = (e, action) => {
+    if (e.key === "Enter") {
+      action();
+    }
   };
 
   const filteredTasks = tasks.filter((task) => {
@@ -47,45 +95,58 @@ function App() {
   return (
     <div className="container">
       <h1>React TODO App</h1>
-      <div className="todo-box">
-        <h2>To-Do List</h2>
-        <span className="theme-toggle" onClick={() => setDarkMode(!darkMode)}>
-          {darkMode ? "🌙" : "☀️"}
-        </span>
+      <button className="theme-toggle" onClick={() => setDarkMode(!darkMode)}>
+        {darkMode ? "🌞 Light Mode" : "🌙 Dark Mode"}
+      </button>
 
-        <div className="input-section">
-          <input
-            type="text"
-            value={newTask}
-            onChange={(e) => setNewTask(e.target.value)}
-            placeholder="Add a new task..."
-          />
-          <button className="add-btn" onClick={addTask}>Add Task</button>
-        </div>
-
-        <div className="filter-section">
-          <label>Filter:</label>
-          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option value="all">All</option>
-            <option value="completed">Completed</option>
-            <option value="pending">Pending</option>
-          </select>
-        </div>
-
-        <ul>
-          {filteredTasks.map((task, index) => (
-            <li key={index} className={task.completed ? "completed" : ""}>
-              <input
-                type="checkbox"
-                checked={task.completed}
-                onChange={() => toggleTaskCompletion(index)}
-              />
-              <span>{task.text}</span>
-              <button className="delete-btn" onClick={() => deleteTask(index)}>❌</button>
-            </li>
-          ))}
-        </ul>
+      <div className="input-section">
+        <input
+          type="text"
+          value={newTask}
+          onChange={(e) => setNewTask(e.target.value)}
+          onKeyDown={(e) => handleKeyDown(e, addTask)}
+          placeholder="Add a new task..."
+        />
+        <button onClick={addTask}>Add Task</button>
       </div>
+
+      <div className="filter-section">
+        <button onClick={() => setFilter("all")}>All</button>
+        <button onClick={() => setFilter("completed")}>Completed</button>
+        <button onClick={() => setFilter("pending")}>Pending</button>
+      </div>
+
+      <ul>
+        {filteredTasks.map((task, index) => (
+          <li key={index} className={task.completed ? "completed" : ""}>
+            {editingTask === index ? (
+              <>
+                <input
+                  ref={editInputRef}
+                  type="text"
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(e, () => saveEdit(index))}
+                />
+                <button onClick={() => saveEdit(index)}>Save</button>
+              </>
+            ) : (
+              <>
+                <input
+                  type="checkbox"
+                  checked={task.completed}
+                  onChange={() => toggleComplete(index)}
+                />
+                <span>{task.text}</span>
+                <button onClick={() => startEditing(index, task.text)}>
+                  Edit
+                </button>
+                <button onClick={() => deleteTask(index)}>Delete</button>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
