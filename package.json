@@ -1,5 +1,6 @@
 {
   "name": "todo-app",
+  "homepage": "https://gwayni.github.io/todoappreact-django/",
   "private": true,
   "version": "0.0.0",
   "type": "module",
